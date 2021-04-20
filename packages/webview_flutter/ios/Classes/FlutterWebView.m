@@ -1,9 +1,10 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "FlutterWebView.h"
 #import "FLTWKNavigationDelegate.h"
+#import "FLTWKProgressionDelegate.h"
 #import "JavaScriptChannelHandler.h"
 
 @implementation FLTWebViewFactory {
@@ -64,6 +65,7 @@
   // The set of registered JavaScript channel names.
   NSMutableSet* _javaScriptChannelNames;
   FLTWKNavigationDelegate* _navigationDelegate;
+  FLTWKProgressionDelegate* _progressionDelegate;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -87,6 +89,7 @@
     NSDictionary<NSString*, id>* settings = args[@"settings"];
 
     WKWebViewConfiguration* configuration = [[WKWebViewConfiguration alloc] init];
+    [self applyConfigurationSettings:settings toConfiguration:configuration];
     configuration.userContentController = userContentController;
     [self updateAutoMediaPlaybackPolicy:args[@"autoMediaPlaybackPolicy"]
                         inConfiguration:configuration];
@@ -135,6 +138,11 @@
   return self;
 }
 
+- (void)dealloc {
+  if (_progressionDelegate != nil) {
+    [_progressionDelegate stopObservingProgress:_webView];
+  }
+}
 NSURL* baseURL = nil;
 - (UIView*)view {
   return _webView;
@@ -352,6 +360,13 @@ NSURL* baseURL = nil;
     } else if ([key isEqualToString:@"hasNavigationDelegate"]) {
       NSNumber* hasDartNavigationDelegate = settings[key];
       _navigationDelegate.hasDartNavigationDelegate = [hasDartNavigationDelegate boolValue];
+    } else if ([key isEqualToString:@"hasProgressTracking"]) {
+      NSNumber* hasProgressTrackingValue = settings[key];
+      bool hasProgressTracking = [hasProgressTrackingValue boolValue];
+      if (hasProgressTracking) {
+        _progressionDelegate = [[FLTWKProgressionDelegate alloc] initWithWebView:_webView
+                                                                         channel:_channel];
+      }
     } else if ([key isEqualToString:@"debuggingEnabled"]) {
       // no-op debugging is always enabled on iOS.
     } else if ([key isEqualToString:@"gestureNavigationEnabled"]) {
@@ -370,6 +385,18 @@ NSURL* baseURL = nil;
   }
   return [NSString stringWithFormat:@"webview_flutter: unknown setting keys: {%@}",
                                     [unknownKeys componentsJoinedByString:@", "]];
+}
+
+- (void)applyConfigurationSettings:(NSDictionary<NSString*, id>*)settings
+                   toConfiguration:(WKWebViewConfiguration*)configuration {
+  NSAssert(configuration != _webView.configuration,
+           @"configuration needs to be updated before webView.configuration.");
+  for (NSString* key in settings) {
+    if ([key isEqualToString:@"allowsInlineMediaPlayback"]) {
+      NSNumber* allowsInlineMediaPlayback = settings[key];
+      configuration.allowsInlineMediaPlayback = [allowsInlineMediaPlayback boolValue];
+    }
+  }
 }
 
 - (void)updateJsMode:(NSNumber*)mode {
