@@ -289,10 +289,10 @@ class WebView extends StatefulWidget {
   final String? initialUrl;
 
   /// The initial baseURL to load.
-  final String baseUrl;
+  final String? baseUrl;
 
   /// The initial static html to load.
-  final String html;
+  final String? html;
   /// Whether Javascript execution is enabled.
   final JavascriptMode javascriptMode;
 
